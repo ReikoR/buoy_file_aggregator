@@ -6,7 +6,7 @@ const [
     profileOutputFile, weatherOutputFile, profileSubsampledOutputFile
 ] = process.argv;
 
-const columnIndex = 8; // pressure
+const columnIndex = 9; // depth
 
 const profileSplitLinesList = processDirectory(profileFileDirectory, profileOutputFile);
 processDirectory(weatherFileDirectory, weatherOutputFile);
