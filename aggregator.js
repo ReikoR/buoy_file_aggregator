@@ -3,14 +3,18 @@ const path = require('path');
 
 const [
     nodePath, aggregatorPath, profileFileDirectory, weatherFileDirectory,
-    profileOutputFile, weatherOutputFile, profileSubsampledOutputFile
+    profileOutputFile, weatherOutputFile, profileSubsamplingSteps
 ] = process.argv;
 
 const columnIndex = 9; // depth
 
+const subsamplingStepsStrings = profileSubsamplingSteps.split(',');
+
+console.log('subsamplingSteps', subsamplingStepsStrings.map(v => parseFloat(v)));
+
 const profileSplitLinesList = processDirectory(profileFileDirectory, profileOutputFile);
 processDirectory(weatherFileDirectory, weatherOutputFile);
-createSubSample(profileSplitLinesList, profileSubsampledOutputFile);
+createSubSamples(profileSplitLinesList, profileOutputFile, subsamplingStepsStrings);
 
 function processDirectory(directory, outputFileName) {
     const fileNames = fs.readdirSync(directory);
@@ -21,14 +25,24 @@ function processDirectory(directory, outputFileName) {
     return splitLinesList;
 }
 
-function createSubSample(splitLinesList, outputFileName) {
+function createSubSamples(splitLInesList, outputFileName, subsamplingStepsStrings) {
+    const extensionName = path.extname(outputFileName);
+    const basename = path.basename(outputFileName, extensionName);
+
+    for (const stepString of subsamplingStepsStrings) {
+        const step = parseFloat(stepString);
+        createSubSample(splitLInesList, `${basename}_subsampled_${stepString}_${extensionName}`, step)
+    }
+}
+
+function createSubSample(splitLinesList, outputFileName, subsamplingStep) {
     const closestToIntegerSplitLines = [];
 
     for (const splitLines of splitLinesList) {
-        for (const group of groupByClosestInteger(splitLines, columnIndex)) {
+        for (const group of groupByStep(splitLines, columnIndex, subsamplingStep)) {
             group.sort((splitLineA, splitLineB) => {
-                return Math.abs(getSplitLineColumnClosestIntegerDiff(splitLineA, columnIndex))
-                    - Math.abs(getSplitLineColumnClosestIntegerDiff(splitLineB, columnIndex));
+                return Math.abs(getSplitLineColumnClosestStepDiff(splitLineA, columnIndex, subsamplingStep))
+                    - Math.abs(getSplitLineColumnClosestStepDiff(splitLineB, columnIndex, subsamplingStep));
             });
 
             closestToIntegerSplitLines.push(group[0]);
@@ -43,36 +57,36 @@ function createSubSample(splitLinesList, outputFileName) {
     fs.writeFileSync(outputFile, splitLinesToFileContent(closestToIntegerSplitLines), 'utf8');
 }
 
-function getSplitLineColumnClosestIntegerDiff(splitLine, columnIndex) {
+function getSplitLineColumnClosestStepDiff(splitLine, columnIndex, step) {
     const value = parseFloat(splitLine[columnIndex]);
-    const closestInteger = Math.round(value);
+    const closestInteger = Math.round(value / step) * step;
 
     return value - closestInteger;
 }
 
-function groupByClosestInteger(splitLines, columnIndex) {
+function groupByStep(splitLines, columnIndex, step) {
     const groups = {};
     const groupsOrder = [];
 
     for (const splitLine of splitLines) {
-        const closestInteger = Math.round(parseFloat(splitLine[columnIndex]));
+        const closestStep = Math.round(parseFloat(splitLine[columnIndex]) / step) * step;
 
-        if (isNaN(closestInteger)) {
+        if (isNaN(closestStep)) {
             continue;
         }
 
-        if (!groups[closestInteger]) {
-            groups[closestInteger] = [];
-            groupsOrder.push(closestInteger);
+        if (!groups[closestStep]) {
+            groups[closestStep] = [];
+            groupsOrder.push(closestStep);
         }
 
-        groups[closestInteger].push(splitLine);
+        groups[closestStep].push(splitLine);
     }
 
     const groupsList = [];
 
-    for (const closestInteger of groupsOrder) {
-        groupsList.push(groups[closestInteger]);
+    for (const closestStep of groupsOrder) {
+        groupsList.push(groups[closestStep]);
     }
 
     return groupsList;
